@@ -727,7 +727,7 @@
 
 <script>
 
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIS76Sz6if33vROVoOG6mBEd24s6J2hfbJI-ybkWdH__YGWQvTQNOUD9hIE4gOfif0/exec";
+const GOOGLE_SCRIPT_URL = "https://cte-capstone-survey-proxy.jgbcustoms.workers.dev/";
 
 const inputs = document.querySelectorAll('input, textarea, select');
 
@@ -906,7 +906,9 @@ async function submitToGoogleSheet() {
 
     await fetch(GOOGLE_SCRIPT_URL, {
   method: "POST",
-  mode: "no-cors",
+  headers: {
+    "Content-Type": "application/json"
+  },
   body: JSON.stringify(data)
 });
 
