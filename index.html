@@ -702,88 +702,254 @@
       </div>
     </section>
 
-    <div class="toolbar">
-      <button class="primary" onclick="calculateSummary()">Calculate Summary</button>
-      <button class="secondary" onclick="window.print()">Print / Save as PDF</button>
-      <button class="danger" onclick="clearForm()">Clear Form</button>
-    </div>
+   <div class="toolbar">
+  <button class="primary" onclick="calculateSummary()">
+    Calculate Summary
+  </button>
+
+  <button class="primary" onclick="submitToGoogleSheet()">
+    Submit Feedback
+  </button>
+
+  <button class="secondary" onclick="window.print()">
+    Print / Save as PDF
+  </button>
+
+  <button class="danger" onclick="clearForm()">
+    Clear Form
+  </button>
+</div>
   </main>
 
   <footer>
     Designed for measurable student feedback, written reflection, and capstone project improvement.
   </footer>
 
-  <script>
-    const inputs = document.querySelectorAll('input, textarea, select');
+<script>
 
-    inputs.forEach(input => {
-      const key = 'capstoneFeedback_' + (input.name || input.id);
-      if (input.type === 'radio') {
-        const saved = localStorage.getItem(key);
-        if (saved && input.value === saved) input.checked = true;
-        input.addEventListener('change', () => localStorage.setItem(key, input.value));
-      } else {
-        input.value = localStorage.getItem(key) || '';
-        input.addEventListener('input', () => localStorage.setItem(key, input.value));
-      }
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsN2YGsTgbV5ad6xnnTzwF_w4WALgR8eTysvzYsb4bvS4GTyKoJX5HAycLhs9Ul2jp/exec";
+
+const inputs = document.querySelectorAll('input, textarea, select');
+
+inputs.forEach(input => {
+
+  const key = 'capstoneFeedback_' + (input.name || input.id);
+
+  if (input.type === 'radio') {
+
+    const saved = localStorage.getItem(key);
+
+    if (saved && input.value === saved) {
+      input.checked = true;
+    }
+
+    input.addEventListener('change', () => {
+      localStorage.setItem(key, input.value);
     });
 
-    function calculateSummary() {
-      const radioGroups = [...new Set(Array.from(document.querySelectorAll('input[type="radio"]')).map(r => r.name))];
-      let total = 0;
-      let answered = 0;
-      let phaseScores = {};
+  } else {
 
-      radioGroups.forEach(group => {
-        const checked = document.querySelector(`input[name="${group}"]:checked`);
-        if (checked) {
-          const value = Number(checked.value);
-          total += value;
-          answered++;
+    input.value = localStorage.getItem(key) || '';
 
-          const table = checked.closest('.rating-table');
-          const phase = table ? table.dataset.phase : 'Other';
-          if (!phaseScores[phase]) phaseScores[phase] = { total: 0, count: 0 };
-          phaseScores[phase].total += value;
-          phaseScores[phase].count++;
-        }
-      });
+    input.addEventListener('input', () => {
+      localStorage.setItem(key, input.value);
+    });
+  }
+});
 
-      const possible = radioGroups.length;
-      const average = answered ? (total / answered).toFixed(2) : '0.00';
-      const completion = possible ? Math.round((answered / possible) * 100) : 0;
+function getPhaseAverage(phaseName) {
 
-      let html = `
-        <span class="score-pill">Average Rating: ${average} / 4</span>
-        <span class="score-pill">Completed: ${answered} of ${possible}</span>
-      `;
+  const table = document.querySelector(`[data-phase="${phaseName}"]`);
 
-      Object.keys(phaseScores).forEach(phase => {
-        const avg = (phaseScores[phase].total / phaseScores[phase].count).toFixed(2);
-        html += `<p><strong>${phase} Average:</strong> ${avg} / 4</p>`;
-      });
+  if (!table) return "";
 
-      document.getElementById('summaryBox').style.display = 'block';
-      document.getElementById('scoreOutput').innerHTML = html;
-      document.getElementById('progressBar').style.width = completion + '%';
-      document.getElementById('completionNote').textContent = completion === 100
-        ? 'All measurable feedback questions are complete. Please review your written reflections before submitting.'
-        : `You completed ${completion}% of the measurable feedback questions. Finish the missing ratings before submitting.`;
+  const checked = table.querySelectorAll('input[type="radio"]:checked');
 
-      document.getElementById('summaryBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (checked.length === 0) return "";
+
+  let total = 0;
+
+  checked.forEach(item => {
+    total += Number(item.value);
+  });
+
+  return (total / checked.length).toFixed(2);
+}
+
+function calculateSummary() {
+
+  const radioGroups = [
+    ...new Set(
+      Array.from(document.querySelectorAll('input[type="radio"]'))
+      .map(r => r.name)
+    )
+  ];
+
+  let total = 0;
+  let answered = 0;
+  let phaseScores = {};
+
+  radioGroups.forEach(group => {
+
+    const checked = document.querySelector(`input[name="${group}"]:checked`);
+
+    if (checked) {
+
+      const value = Number(checked.value);
+
+      total += value;
+      answered++;
+
+      const table = checked.closest('.rating-table');
+      const phase = table ? table.dataset.phase : 'Other';
+
+      if (!phaseScores[phase]) {
+        phaseScores[phase] = {
+          total: 0,
+          count: 0
+        };
+      }
+
+      phaseScores[phase].total += value;
+      phaseScores[phase].count++;
     }
+  });
 
-    function clearForm() {
-      const confirmClear = confirm('Are you sure you want to clear the form? This will remove saved responses from this browser.');
-      if (!confirmClear) return;
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('capstoneFeedback_')) localStorage.removeItem(key);
-      });
-      document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
-      document.querySelectorAll('input[type="text"], textarea, select').forEach(el => el.value = '');
-      document.getElementById('summaryBox').style.display = 'none';
-      document.getElementById('progressBar').style.width = '0%';
+  const possible = radioGroups.length;
+
+  const average = answered
+    ? (total / answered).toFixed(2)
+    : '0.00';
+
+  const completion = possible
+    ? Math.round((answered / possible) * 100)
+    : 0;
+
+  let html = `
+    <span class="score-pill">
+      Average Rating: ${average} / 4
+    </span>
+
+    <span class="score-pill">
+      Completed: ${answered} of ${possible}
+    </span>
+  `;
+
+  Object.keys(phaseScores).forEach(phase => {
+
+    const avg = (
+      phaseScores[phase].total /
+      phaseScores[phase].count
+    ).toFixed(2);
+
+    html += `
+      <p>
+        <strong>${phase} Average:</strong>
+        ${avg} / 4
+      </p>
+    `;
+  });
+
+  document.getElementById('summaryBox').style.display = 'block';
+
+  document.getElementById('scoreOutput').innerHTML = html;
+
+  document.getElementById('progressBar').style.width =
+    completion + '%';
+
+  document.getElementById('completionNote').textContent =
+    completion === 100
+      ? 'All measurable feedback questions are complete.'
+      : `You completed ${completion}% of the measurable feedback questions.`;
+
+  document.getElementById('summaryBox').scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+}
+
+async function submitToGoogleSheet() {
+
+  calculateSummary();
+
+  const data = {
+
+    firstName: document.getElementById("firstName").value,
+    lastName: document.getElementById("lastName").value,
+    teamName: document.getElementById("teamName").value,
+    track: document.getElementById("track").value,
+    role: document.getElementById("role").value,
+
+    phase1Avg: getPhaseAverage("Phase 1"),
+    phase2Avg: getPhaseAverage("Phase 2"),
+    phase3Avg: getPhaseAverage("Phase 3"),
+    phase4Avg: getPhaseAverage("Phase 4"),
+    phase5Avg: getPhaseAverage("Phase 5"),
+    phase6Avg: getPhaseAverage("Phase 6"),
+    overallAvg: getPhaseAverage("Overall"),
+
+    p1reflect: document.getElementById("p1reflect").value,
+    p2reflect: document.getElementById("p2reflect").value,
+    p3reflect: document.getElementById("p3reflect").value,
+    p4reflect: document.getElementById("p4reflect").value,
+    p5reflect: document.getElementById("p5reflect").value,
+    p6reflect: document.getElementById("p6reflect").value,
+
+    bestPart: document.getElementById("bestPart").value,
+    hardestPart: document.getElementById("hardestPart").value,
+    teacherKeep: document.getElementById("teacherKeep").value,
+    teacherChange: document.getElementById("teacherChange").value,
+    finalMessage: document.getElementById("finalMessage").value
+  };
+
+  try {
+
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
+
+    alert("Feedback submitted successfully!");
+
+  } catch(error) {
+
+    console.error(error);
+
+    alert("Submission failed.");
+  }
+}
+
+function clearForm() {
+
+  const confirmClear = confirm(
+    'Are you sure you want to clear the form?'
+  );
+
+  if (!confirmClear) return;
+
+  Object.keys(localStorage).forEach(key => {
+
+    if (key.startsWith('capstoneFeedback_')) {
+      localStorage.removeItem(key);
     }
-  </script>
+  });
+
+  document.querySelectorAll('input[type="radio"]')
+    .forEach(r => r.checked = false);
+
+  document.querySelectorAll(
+    'input[type="text"], textarea, select'
+  ).forEach(el => el.value = '');
+
+  document.getElementById('summaryBox').style.display = 'none';
+
+  document.getElementById('progressBar').style.width = '0%';
+}
+
+</script>
 </body>
 </html>
